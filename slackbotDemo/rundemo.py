@@ -8,7 +8,7 @@ class BidafBot:
         self.question = None
         self.demo = Demo()
 	
-    #self.file = json.loads(open('bot_Q&A.json').read())
+    
     def getAnswer(self, paragraph, question):
 
         pq_prepro = prepro(paragraph, question)
@@ -27,5 +27,4 @@ class BidafBot:
             answer = self.getAnswer(self.paragraph,self.question)
         return answer
 
-#if __name__ == "__main__":
-#    main()
+
