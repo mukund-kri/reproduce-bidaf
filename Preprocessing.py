@@ -179,7 +179,7 @@ word_counter,char_counter = build_vocab(train_data,dev_data)
 
 def preprocessing_data(mode,data):
     word_counter,char_counter = Counter(), Counter()
-    word_context, char_context, actual_context, word_question, char_question, relation, answer_points = [],[],[],[],[],[],[] 
+    word_context, char_context, actual_context, word_question, char_question, relation, answer_start,answer_end =[],[],[],[],[],[],[],[] 
     for data_index, data_paragraph in enumerate(data['data']):
         for para_index, each_paragraph in enumerate(data_paragraph['paragraphs']):
             context_data = each_paragraph['context']
@@ -202,20 +202,26 @@ def preprocessing_data(mode,data):
                     ques = question_data['question']
                     q = word_tokenize(ques)
                     cq = [list(ques_char) for ques_char in q]
-                    y = []  
+                    y_start,y_end = [],[]  
                     for answer in question_data['answers']:
                         start = answer['answer_start']
                         stop = start + len(answer)
                         # Getting the word span
                         y0, y1 = get_word_span(context_data, tokenized_context, start, stop)
-                        y.append([y0, y1])
+                        y_start.append(y0)
+                        y_end.append(y1)
                     word_question.append(q)
                     char_question.append(cq)
-                    answer_points.append(y)
+                    answer_start.append(y_start)
+                    answer_end.append(y_end)
                     relation.append(r)
         print(data_index)
     context = {'actual_context':actual_context, 'char_context' : char_context, 'word_context': word_context}
-    query = {'word_question':word_question, 'char_question':char_question, 'relation' : relation,'answer_points' : answer_points}
+    query = {'word_question':word_question, 
+             'char_question':char_question, 
+             'relation' : relation,
+             'answer_start' : answer_start,
+            'answer_end' : answer_end}
     save_json(context=context,query=query,mode=mode)
 
 
