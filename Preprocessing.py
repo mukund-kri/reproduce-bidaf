@@ -312,7 +312,7 @@ maxquery_sent_len_train,maxquery_sent_len_test
 max_sent_cont = max(max_sent_len_train,max_sent_len_test)
 max_para_cont = max(max_para_len_train,max_para_len_train)
 max_sent_query = max(maxquery_sent_len_train,maxquery_sent_len_test)
-max_sent_query
+max_sent_query,max_para_cont,max_sent_cont
 
 
 # In[24]:
@@ -321,14 +321,23 @@ def contexttrain_to_id():
     context_idx = [0] * len(context_train['word_context'])
     for p,each_context in enumerate(context_train['word_context']):
         sent_idx = [0] * max_para_cont
-        for s,each_sentence in enumerate(each_context):
+        para_len = len(each_context)
+        for s in range(max_para_cont):
             word_idx = [0] * max_sent_cont
-            for w,each_word in enumerate(each_sentence):
-                if each_word.lower() not in word2vec.keys():
-                    word_idx[w] = 1
-                else:
-                    word_idx[w]=all_word2idx[each_word.lower()]
-            sent_idx[s]=word_idx
+            if s >= para_len:
+                sent_idx[s] = word_idx
+            else:
+                each_sentence = each_context[s]
+                sent_len = len(each_sentence)
+                for w in range(max_sent_cont):
+                    if w < sent_len:
+                        each_word = each_sentence[w]
+                        if each_word.lower() not in word2vec.keys():
+                            word_idx[w] = 1
+                        else:
+                            word_idx[w]=all_word2idx[each_word.lower()]
+                sent_idx[s]=word_idx
+                
         context_idx[p]=sent_idx
     return context_idx
 
@@ -339,14 +348,23 @@ def contexttest_to_id():
     context_idx = [0] * len(context_test['word_context'])
     for p,each_context in enumerate(context_test['word_context']):
         sent_idx = [0] * max_para_cont
-        for s,each_sentence in enumerate(each_context):
+        para_len = len(each_context)
+        for s in range(max_para_cont):
             word_idx = [0] * max_sent_cont
-            for w,each_word in enumerate(each_sentence):
-                if each_word.lower() not in word2vec.keys():
-                    word_idx[w] = 1
-                else:
-                    word_idx[w]=all_word2idx[each_word.lower()]
-            sent_idx[s]=word_idx
+            if s >= para_len:
+                sent_idx[s] = word_idx
+            else:
+                each_sentence = each_context[s]
+                sent_len = len(each_sentence)
+                for w in range(max_sent_cont):
+                    if w < sent_len:
+                        each_word = each_sentence[w]
+                        if each_word.lower() not in word2vec.keys():
+                            word_idx[w] = 1
+                        else:
+                            word_idx[w]=all_word2idx[each_word.lower()]
+                sent_idx[s]=word_idx
+                
         context_idx[p]=sent_idx
     return context_idx
 
@@ -355,14 +373,16 @@ def contexttest_to_id():
 
 def querytrain_to_id():
     question_idx = [0] * len(query_train['word_question'])
+    word_idx = [0] * max_sent_query
     for q,each_question in enumerate(query_train['word_question']):
-        word_idx = [0] * max_sent_query
-        for w,each_word in enumerate(each_question):
+       
+        for w,each_word in zip(range(max_sent_cont),each_question):
                 if each_word.lower() not in word2vec.keys():
                     word_idx[w] = 1
                 else:
                     word_idx[w]=all_word2idx[each_word.lower()]
         question_idx[q] = word_idx
+        word_idx = [0] * max_sent_query
     return question_idx
 
 
@@ -370,14 +390,16 @@ def querytrain_to_id():
 
 def querytest_to_id():
     question_idx = [0] * len(query_test['word_question'])
+    word_idx = [0] * max_sent_query
     for q,each_question in enumerate(query_test['word_question']):
-        word_idx = [0] * max_sent_query
-        for w,each_word in enumerate(each_question):
+       
+        for w,each_word in zip(range(max_sent_cont),each_question):
                 if each_word.lower() not in word2vec.keys():
                     word_idx[w] = 1
                 else:
                     word_idx[w]=all_word2idx[each_word.lower()]
         question_idx[q] = word_idx
+        word_idx = [0] * max_sent_query
     return question_idx
 
 
