@@ -1,21 +1,35 @@
+
+# coding: utf-8
+
+# In[1]:
+
+# Char to Word(Squad) - Done
+# Conversion the whole data into reading data with relevant information - Done
+# Tokenizing the context for data extraction - Done
+# Preprocessing the data- Word2vec - Done
+# Making neccesary list- Done
+# Making the vocab and conversion each word to id- Done
+
+
+# In[2]:
+
 import nltk
 import re
 import json
 import os
 import numpy as np
 from collections import Counter
-from copy import deepcopy
 
 
-
+# In[3]:
 
 with open('data/squad/train-v1.1.json') as json_data:
     train_data = json.load(json_data)
 with open('data/squad/dev-v1.1.json') as json_data:
     dev_data = json.load(json_data)
-t_data, d_data = deepcopy(train_data), deepcopy(dev_data)
 
 
+# In[4]:
 
 def save_json(mode, context, query):
     print(mode)
@@ -26,6 +40,8 @@ def save_json(mode, context, query):
     print('Saved the ',mode,' data file')
     return 'Success'
 
+
+# In[5]:
 
 def process_context(context):
     tokens = []
@@ -40,6 +56,8 @@ def word_tokenize(tokens):
 
 sent_tokenize = nltk.sent_tokenize
 
+
+# In[6]:
 
 def get_2d_spans(context, each_word):
     span = []
@@ -63,6 +81,8 @@ def get_word_span(context, each_word, start, stop):
     return word_span_list[0], (word_span_list[-1][0], word_span_list[-1][1] + 1)
 
 
+# In[7]:
+
 def get_word2vec(word_counter):
     word2vec_dict = {}
     with open('data/glove/glove.6B.100d.txt','r',encoding = 'utf-8') as glove_data:
@@ -81,10 +101,50 @@ def get_word2vec(word_counter):
     return word2vec_dict
 
 
-def build_vocab(t_data,d_data):
+# In[8]:
+
+# Basic Understanding Code
+def read_data():
+    data = []
+    data_points = {}
+    each_context = []
+    main_data = []
+    for data_index, data_paragraph in enumerate(train_data['data']):
+        for each_paragraph in data_paragraph['paragraphs']:
+            question_data = each_paragraph['qas']
+            context_data = each_paragraph['context']
+            for number_of_question in range(len(question_data)):
+                    data_points['context'] = context_data
+                    data_points['question'] = question_data[number_of_question]['question']
+                    answer = question_data[number_of_question]['answers'][0]['text']
+                    data_points['answers'] = answer
+                    start = question_data[number_of_question]['answers'][0]['answer_start']
+                    stop = start + len(answer) 
+                    tokenized_context = list(map(word_tokenize, sent_tokenize(context_data)))
+                    tokenized_context = [process_context(tokens) for tokens in tokenized_context]
+                    y0, y1 = get_word_span(data_points['context'], tokenized_context, start, stop)
+                    data_points['answer_start'] = y0
+                    data_points['answer_stop'] = y1
+                    data.append(data_points)
+                    data_points = {}
+            each_context.append(data)
+            data = []
+        main_data.append(each_context)
+        each_context = []
+    return main_data
+
+
+# In[9]:
+
+#training_data = read_data()
+
+
+# In[10]:
+
+def build_vocab(train_data,dev_data):
     word_counter,char_counter = Counter(),Counter()
-    t_data['data'].extend(d_data['data'])
-    for data_index, data_paragraph in enumerate(t_data['data']):
+    train_data['data'].extend(dev_data['data'])
+    for data_index, data_paragraph in enumerate(train_data['data']):
         for para_index, each_paragraph in enumerate(data_paragraph['paragraphs']):
             context_data = each_paragraph['context']
             context_data = context_data.replace("''", '" ')
@@ -109,12 +169,17 @@ def build_vocab(t_data,d_data):
                             char_counter[qq] += 1
     return word_counter,char_counter
 
-word_counter,char_counter = build_vocab(t_data,d_data)
 
+# In[11]:
+
+word_counter,char_counter = build_vocab(train_data,dev_data)
+
+
+# In[12]:
 
 def preprocessing_data(mode,data):
     word_counter,char_counter = Counter(), Counter()
-    word_context, char_context, word_question, char_question, relation, answer_start,answer_end =[],[],[],[],[],[],[] 
+    word_context, char_context, actual_context, word_question, char_question, relation, answer_start,answer_end =[],[],[],[],[],[],[],[] 
     for data_index, data_paragraph in enumerate(data['data']):
         for para_index, each_paragraph in enumerate(data_paragraph['paragraphs']):
             context_data = each_paragraph['context']
@@ -122,21 +187,18 @@ def preprocessing_data(mode,data):
             context_data = context_data.replace("``", '" ')
             tokenized_context = list(map(word_tokenize, sent_tokenize(context_data)))
             tokenized_context = [process_context(tokens) for tokens in tokenized_context] 
-                
-            # Flattening each tokenized sentences
-            each_sent = []
-            for sent in tokenized_context:
-                each_sent.extend(sent)  
-            
+
             # Adding character to tokenized context
             cxi = [[list(token) for token in tokenized] for tokenized in tokenized_context]
-    
+            word_context.append(tokenized_context)
+            char_context.append(cxi)
+            actual_context.append(context_data)
+
+
             # Getting the question-context relation
             r = [data_index,para_index]
 
             for question_data in each_paragraph['qas']:
-                    word_context.append(each_sent)
-                    char_context.append(cxi)
                     ques = question_data['question']
                     q = word_tokenize(ques)
                     cq = [list(ques_char) for ques_char in q]
@@ -144,18 +206,8 @@ def preprocessing_data(mode,data):
                     for answer in question_data['answers']:
                         start = answer['answer_start']
                         stop = start + len(answer)
-                        
                         # Getting the word span
                         y0, y1 = get_word_span(context_data, tokenized_context, start, stop)
-                        # Converting the start and end index of words from sent,word to whole word 
-                        lengths = [len(x) for x in tokenized_context]
-                        count = 0
-                        length = 0
-                        while(y0[0] > length):
-                            count += lengths[length]
-                            length += 1
-                        y0 = count + y0[1]
-                        y1 = count + y1[1]
                         y_start.append(y0)
                         y_end.append(y1)
                     word_question.append(q)
@@ -164,8 +216,7 @@ def preprocessing_data(mode,data):
                     answer_end.append(y_end)
                     relation.append(r)
         print(data_index)
-        new_actual_context, new_word_context, new_char_context = [], [], []    
-    context = {'char_context' : char_context, 'word_context': word_context}
+    context = {'actual_context':actual_context, 'char_context' : char_context, 'word_context': word_context}
     query = {'word_question':word_question, 
              'char_question':char_question, 
              'relation' : relation,
@@ -174,8 +225,12 @@ def preprocessing_data(mode,data):
     save_json(context=context,query=query,mode=mode)
 
 
+# In[13]:
+
 word2vec = get_word2vec(word_counter)
 
+
+# In[14]:
 
 def save_updated_files():
     dir_path = 'data/squad'
@@ -196,11 +251,17 @@ def save_updated_files():
     print('Shared Data file written')
 
 
+# In[15]:
+
 preprocessing_data(mode = 'test',data = dev_data)
 
 
+# In[16]:
+
 preprocessing_data(mode = 'train',data = train_data)
 
+
+# In[17]:
 
 with open('data/squad/context_train.json') as json_data:
     context_train = json.load(json_data)
@@ -211,22 +272,18 @@ with open('data/squad/context_test.json') as json_data:
 with open('data/squad/query_test.json') as json_data:
     query_test = json.load(json_data)
 
-max_word_len_train = []
-max_word_len_test = []
-sum_len = 0
-for con in context_train['word_context']:
-    max_word_len_train.append(len(con))
-for con in context_test['word_context']:
-    max_word_len_test.append(len(con))
-max_word_len_train = max(max_word_len_train)
-max_word_len_test = max(max_word_len_test)
-print(max_word_len_test,max_word_len_train)
-max_word_len = max(max_word_len_train,max_word_len_test)
-print(max_word_len)        
+
+# In[18]:
 
 all_word2idx = ['NULL'] + ['UNKNOWN'] + [word for word in word_counter.keys()] 
 
+
+# In[19]:
+
 all_word2idx = {word:idx for idx,word in enumerate(all_word2idx)}
+
+
+# In[20]:
 
 shared = {}
 shared['word2vec'] = word2vec
@@ -235,74 +292,104 @@ shared['char_counter'] = char_counter
 shared['all_words'] = all_word2idx
 
 
+# In[21]:
+
+max_sent_len_train = max(len(sent) for con in context_train['word_context'] for sent in con)
+max_para_len_train = max(len(con) for con in context_train['word_context'])
+max_sent_len_test = max(len(sent) for con in context_test['word_context'] for sent in con)
+max_para_len_test = max(len(con) for con in context_test['word_context'])
+
+
+# In[22]:
+
 maxquery_sent_len_train = max(len(con) for con in query_train['word_question'])
 maxquery_sent_len_test = max(len(con) for con in query_test['word_question'])
-print(maxquery_sent_len_train,maxquery_sent_len_test)
+maxquery_sent_len_train,maxquery_sent_len_test
 
+
+# In[23]:
+
+max_sent_cont = max(max_sent_len_train,max_sent_len_test)
+max_para_cont = max(max_para_len_train,max_para_len_train)
 max_sent_query = max(maxquery_sent_len_train,maxquery_sent_len_test)
+max_sent_query
 
+
+# In[24]:
 
 def contexttrain_to_id():
     context_idx = [0] * len(context_train['word_context'])
     for p,each_context in enumerate(context_train['word_context']):
-        sent_idx = [0] * max_word_len
-    
-        for w,each_word in zip(range(max_word_len),each_context):
+        sent_idx = [0] * max_para_cont
+        for s,each_sentence in enumerate(each_context):
+            word_idx = [0] * max_sent_cont
+            for w,each_word in enumerate(each_sentence):
                 if each_word.lower() not in word2vec.keys():
-                    sent_idx[w] = 1
+                    word_idx[w] = 1
                 else:
-                    sent_idx[w]=all_word2idx[each_word.lower()]
-        context_idx[p] = sent_idx
-        sent_idx = [0] * max_word_len
+                    word_idx[w]=all_word2idx[each_word.lower()]
+            sent_idx[s]=word_idx
+        context_idx[p]=sent_idx
     return context_idx
+
+
+# In[25]:
 
 def contexttest_to_id():
     context_idx = [0] * len(context_test['word_context'])
     for p,each_context in enumerate(context_test['word_context']):
-        sent_idx = [0] * max_word_len
-    
-        for w,each_word in zip(range(max_word_len),each_context):
+        sent_idx = [0] * max_para_cont
+        for s,each_sentence in enumerate(each_context):
+            word_idx = [0] * max_sent_cont
+            for w,each_word in enumerate(each_sentence):
                 if each_word.lower() not in word2vec.keys():
-                    sent_idx[w] = 1
+                    word_idx[w] = 1
                 else:
-                    sent_idx[w]=all_word2idx[each_word.lower()]
-        context_idx[p] = sent_idx
-        sent_idx = [0] * max_word_len
+                    word_idx[w]=all_word2idx[each_word.lower()]
+            sent_idx[s]=word_idx
+        context_idx[p]=sent_idx
     return context_idx
+
+
+# In[26]:
 
 def querytrain_to_id():
     question_idx = [0] * len(query_train['word_question'])
-    word_idx = [0] * max_sent_query
     for q,each_question in enumerate(query_train['word_question']):
-       
-        for w,each_word in zip(range(max_sent_query),each_question):
+        word_idx = [0] * max_sent_query
+        for w,each_word in enumerate(each_question):
                 if each_word.lower() not in word2vec.keys():
                     word_idx[w] = 1
                 else:
                     word_idx[w]=all_word2idx[each_word.lower()]
         question_idx[q] = word_idx
-        word_idx = [0] * max_sent_query
     return question_idx
+
+
+# In[27]:
 
 def querytest_to_id():
     question_idx = [0] * len(query_test['word_question'])
-    word_idx = [0] * max_sent_query
     for q,each_question in enumerate(query_test['word_question']):
-       
-        for w,each_word in zip(range(max_sent_query),each_question):
+        word_idx = [0] * max_sent_query
+        for w,each_word in enumerate(each_question):
                 if each_word.lower() not in word2vec.keys():
                     word_idx[w] = 1
                 else:
                     word_idx[w]=all_word2idx[each_word.lower()]
         question_idx[q] = word_idx
-        word_idx = [0] * max_sent_query
     return question_idx
 
+
+# In[28]:
 
 context_train_idx = contexttrain_to_id()
 context_test_idx = contexttest_to_id()
 query_train_idx = querytrain_to_id()
 query_test_idx = querytest_to_id()
+
+
+# In[29]:
 
 context_train['context_idx'] = context_train_idx
 context_test['context_idx'] = context_test_idx
