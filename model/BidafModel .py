@@ -2,8 +2,9 @@ import keras
 import json
 import numpy as np
 from keras.models import Model
-from keras.layers import Bidirectional, LSTM, Dense, Embedding, add, dot, Input, Activation
+from keras.layers import Bidirectional, LSTM, Dense, Embedding, add, dot, Input, Activation, Lambda
 from keras.utils import to_categorical
+import attention_layer
 
 context_train = json.load(open('data/squad/context_train_useful.json'))
 print('Context train read')
@@ -37,7 +38,7 @@ model2_input = Input(shape = (J, ))
 model2_embed = Embedding(output_dim=100, input_dim=emb_mat.shape[0], weights = [emb_mat], trainable = False)(model2_input)
 model2_lstm = Bidirectional(LSTM(256, return_sequences = True))(model2_embed)
 
-multiply_layer = dot([model1_lstm, model2_lstm],axes = 2)
+multiply_layer = Lambda(attention_layer(model1_lstm,model2_lstm))
 
 modelling_bilstm_layer = Bidirectional(LSTM(256, return_sequences = True))(multiply_layer)
 modelling_bilstm_layer_1 = Bidirectional(LSTM(256))(modelling_bilstm_layer)
